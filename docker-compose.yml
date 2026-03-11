@@ -1,0 +1,36 @@
+version: "3.8"
+
+services:
+  leaps-scanner:
+    build: .
+    container_name: leaps-scanner
+    restart: "no"
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+    volumes:
+      - scanner-data:/app/data
+    # Run via cron on the host, or use the cron service below
+
+  # Optional: self-contained cron runner so you don't need host crontab
+  leaps-cron:
+    build: .
+    container_name: leaps-cron
+    restart: unless-stopped
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+    volumes:
+      - scanner-data:/app/data
+    entrypoint: /bin/sh
+    command: >
+      -c "
+        echo '# Run scan Mon-Fri at 5:30 PM ET (after market close)' &&
+        echo '30 21 * * 1-5 cd /app && python scanner.py >> /var/log/scanner.log 2>&1' > /etc/crontabs/root &&
+        echo '# Also run at 10:30 AM ET for mid-day check on volatile days' >> /etc/crontabs/root &&
+        echo '30 14 * * 1-5 cd /app && python scanner.py >> /var/log/scanner.log 2>&1' >> /etc/crontabs/root &&
+        crond -f -l 2
+      "
+
+volumes:
+  scanner-data:
